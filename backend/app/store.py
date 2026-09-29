@@ -31,10 +31,16 @@ class Store:
         modules: list[dict[str, object]] = []
         for name in self.module_names():
             rows = self.rows(name)
+            # 推出开车的待处理量按明细实时重算：状态为「待推出」才算待推出，
+            # 已签名确认、已取消的记录不再计数，不依赖可能滞后的 pending 标志。
+            if name == "pushback":
+                pending = sum(1 for row in rows if row.get("status") == "待推出")
+            else:
+                pending = sum(1 for row in rows if row.get("pending"))
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
+                "pending": pending,
                 "abnormal": sum(1 for row in rows if row.get("abnormal")),
             })
         cards = [

@@ -41,18 +41,22 @@ def get_entry(entry_id: int) -> dict:
 
 @router.post("", response_model=ActionResult)
 def create_entry(payload: EntryPayload) -> ActionResult:
-    """登记一条推出任务，缺字段时说明原因而不是静默丢弃。"""
-    entry, missing = service.create_entry(payload.values)
-    if missing:
-        return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
+    """登记一条推出任务，缺字段或同航班重复登记时说明原因而不是静默丢弃。"""
+    entry, message = service.create_entry(payload.values)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message="推出任务已登记", entry=entry)
 
 
 @router.post("/{entry_id}/actions", response_model=ActionResult)
 def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
-    """对单条推出任务执行安排推出、开始推出、确认推出；不允许的动作会被拦下并说明原因。"""
+    """对单条推出任务执行安排推出、开始推出、签名确认推出；不允许的动作会被拦下并说明原因。
+
+    确认推出为一次签名确认：提交值里可带推出方向、牵引车编号、通信频道、推出时段，
+    服务端校验通过后一并写入。
+    """
     action = str(payload.values.get("action") or "").strip()
-    entry, message = service.run_action(entry_id, action)
+    entry, message = service.run_action(entry_id, action, payload.values)
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
